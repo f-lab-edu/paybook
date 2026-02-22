@@ -1,0 +1,6 @@
+rootProject.name = 'paybook'
+
+include 'core'
+include 'order'
+include 'payment'
+include 'settlement'
