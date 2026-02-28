@@ -1,35 +1,35 @@
 plugins {
-    id 'java'
-    id 'org.springframework.boot' version '4.0.3' apply false
-    id 'io.spring.dependency-management' version '1.1.7' apply false
+    id 'java' // Java 컴파일 및 빌드 기능을 제공하는 플러그인 적용
+    id 'org.springframework.boot' version '4.0.3' apply false // Spring Boot 플러그인 선언 (버전 4.0.3), apply false로 루트에는 적용하지 않고 하위 모듈에서 선택적으로 적용
+    id 'io.spring.dependency-management' version '1.1.7' apply false // Spring 의존성 버전 관리 플러그인 선언, apply false로 루트에는 적용하지 않고 하위 모듈에서 선택적으로 적용
 }
 
-allprojects {
-    group = 'com.paybook'
-    version = '0.0.1-SNAPSHOT'
+allprojects { // 루트 프로젝트와 모든 하위 모듈에 공통으로 적용되는 설정
+    group = 'com.paybook' // 모든 프로젝트의 그룹(패키지) ID를 'com.paybook'으로 설정
+    version = '0.0.1-SNAPSHOT' // 모든 프로젝트의 버전을 '0.0.1-SNAPSHOT'으로 설정 (개발 중 버전)
 
     repositories {
-        mavenCentral()
+        mavenCentral() // 의존성을 다운로드할 저장소로 Maven Central 사용
     }
 }
 
-subprojects {
-    apply plugin: 'java'
-    apply plugin: 'io.spring.dependency-management'
+subprojects { // 하위 모듈(core, order, payment, settlement)에만 공통으로 적용되는 설정
+    apply plugin: 'java' // 모든 하위 모듈에 Java 플러그인 적용
+    apply plugin: 'io.spring.dependency-management' // 모든 하위 모듈에 Spring 의존성 관리 플러그인 적용 (의존성 버전을 BOM으로 일괄 관리)
 
     java {
         toolchain {
-            languageVersion = JavaLanguageVersion.of(21)
+            languageVersion = JavaLanguageVersion.of(21) // Java 21 버전을 사용하도록 툴체인 설정 (컴파일 및 실행 시 JDK 21 사용)
         }
     }
 
     dependencyManagement {
         imports {
-            mavenBom "org.springframework.boot:spring-boot-dependencies:4.0.3"
+            mavenBom "org.springframework.boot:spring-boot-dependencies:4.0.3" // Spring Boot 4.0.3의 BOM(Bill of Materials)을 가져와서 Spring 관련 의존성의 버전을 자동으로 관리
         }
     }
 
     test {
-        useJUnitPlatform()
+        useJUnitPlatform() // 테스트 실행 시 JUnit 5(JUnit Platform)를 사용하도록 설정
     }
 }

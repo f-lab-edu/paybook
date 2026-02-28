@@ -1,6 +1,6 @@
-rootProject.name = 'paybook'
+rootProject.name = 'paybook' // 루트 프로젝트의 이름을 'paybook'으로 설정
 
-include 'core'
-include 'order'
-include 'payment'
-include 'settlement'
+include 'core'       // 'core' 모듈을 멀티 모듈 프로젝트에 포함 (공통 도메인/유틸리티 모듈)
+include 'order'      // 'order' 모듈을 멀티 모듈 프로젝트에 포함 (주문 서비스 모듈)
+include 'payment'    // 'payment' 모듈을 멀티 모듈 프로젝트에 포함 (결제 서비스 모듈)
+include 'settlement' // 'settlement' 모듈을 멀티 모듈 프로젝트에 포함 (정산 서비스 모듈)

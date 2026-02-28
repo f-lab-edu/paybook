@@ -1,8 +1,8 @@
 plugins {
-    id 'org.springframework.boot'
+    id 'org.springframework.boot' // Spring Boot 플러그인 적용 (실행 가능한 JAR/WAR 빌드, bootRun 등의 태스크 제공)
 }
 
 dependencies {
-    implementation project(':core')
-    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation project(':core') // core 모듈을 의존성으로 추가 (공통 도메인/유틸리티 코드 사용)
+    implementation 'org.springframework.boot:spring-boot-starter-web' // Spring Boot 웹 스타터 (내장 톰캣, Spring MVC, REST API 개발 기능 제공)
 }
