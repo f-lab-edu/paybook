@@ -5,4 +5,7 @@ plugins {
 dependencies {
     implementation project(':core') // core 모듈을 의존성으로 추가 (공통 도메인/유틸리티 코드 사용)
     implementation 'org.springframework.boot:spring-boot-starter-web' // Spring Boot 웹 스타터 (내장 톰캣, Spring MVC, REST API 개발 기능 제공)
+    implementation 'org.springframework.boot:spring-boot-starter-validation' // Bean Validation 스타터 (@NotBlank, @Min 등 요청 검증 어노테이션 제공)
+    testImplementation 'org.springframework.boot:spring-boot-starter-test' // Spring Boot 테스트 스타터 (JUnit5, AssertJ 등 테스트 도구 제공)
+    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test' // Spring Boot 4에서 분리된 WebMvc 테스트 스타터 (MockMvc, @AutoConfigureMockMvc 등 제공)
 }
