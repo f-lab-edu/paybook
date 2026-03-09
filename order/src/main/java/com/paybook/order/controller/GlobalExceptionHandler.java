@@ -1,6 +1,7 @@
 package com.paybook.order.controller;
 
 import com.paybook.order.dto.ErrorResponse;
+import com.paybook.order.exception.OrderException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -31,5 +32,11 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleMalformedJson(HttpMessageNotReadableException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new ErrorResponse("INVALID_JSON", "요청 본문을 파싱할 수 없습니다"));
+    }
+
+    @ExceptionHandler(OrderException.class)
+    public ResponseEntity<ErrorResponse> handleOrderException(OrderException ex) {
+        return ResponseEntity.status(ex.getHttpStatus())
+                .body(new ErrorResponse(ex.getCode(), ex.getMessage()));
     }
 }
