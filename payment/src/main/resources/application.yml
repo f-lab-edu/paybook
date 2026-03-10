@@ -1,6 +1,19 @@
 spring:
   application:
     name: payment-service
+  datasource:
+    url: jdbc:h2:mem:paymentdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
 
 server:
   port: 8081
+
+payment:
+  order-service:
+    base-url: http://localhost:8080

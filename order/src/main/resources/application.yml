@@ -1,6 +1,25 @@
 spring:
   application:
     name: order-service
+  datasource:
+    url: jdbc:h2:mem:orderdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
 
 server:
   port: 8080
+
+order:
+  discount:
+    max-discount-percent: 30
+    min-pg-payment-percent: 50
+  delivery:
+    fee: 3000
+    free-threshold: 30000
+  payment:
+    timeout-minutes: 30
