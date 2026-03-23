@@ -6,16 +6,19 @@ import com.paybook.order.entity.OrderStatus;
 import com.paybook.order.repository.OrderRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class PaymentTimeoutScheduler {
+
+    private static final int BATCH_SIZE = 500;
 
     private final OrderRepository orderRepository;
     private final OrderService orderService;
@@ -24,24 +27,34 @@ public class PaymentTimeoutScheduler {
     @Scheduled(fixedDelayString = "${order.payment.timeout-check-interval:60000}")
     public void cancelTimedOutOrders() {
         LocalDateTime cutoff = LocalDateTime.now().minusMinutes(paymentTimeoutConfig.timeoutMinutes());
-        List<OrderEntity> timedOutOrders = orderRepository.findByStatusAndCreatedAtBefore(
-                OrderStatus.PENDING_PAYMENT, cutoff);
-
-        timedOutOrders.forEach(order -> {
-            try {
-                orderService.cancelOrder(order.getOrderId());
-                log.info("결제 타임아웃 주문 자동 취소: {}", order.getOrderId());
-            } catch (Exception e) {
-                log.error("결제 타임아웃 주문 취소 실패: {}", order.getOrderId(), e);
-            }
-        });
+        int cancelled = processBatch(cutoff);
+        if (cancelled > 0) {
+            log.info("결제 타임아웃 주문 자동 취소: {}건", cancelled);
+        }
     }
 
     public int cancelTimedOutOrdersManually(LocalDateTime cutoff) {
-        List<OrderEntity> timedOutOrders = orderRepository.findByStatusAndCreatedAtBefore(
-                OrderStatus.PENDING_PAYMENT, cutoff);
+        return processBatch(cutoff);
+    }
 
-        timedOutOrders.forEach(order -> orderService.cancelOrder(order.getOrderId()));
-        return timedOutOrders.size();
+    private int processBatch(LocalDateTime cutoff) {
+        int totalCancelled = 0;
+        Page<OrderEntity> page;
+
+        do {
+            page = orderRepository.findByStatusAndCreatedAtBefore(
+                    OrderStatus.PENDING_PAYMENT, cutoff, PageRequest.of(0, BATCH_SIZE));
+
+            for (OrderEntity order : page.getContent()) {
+                try {
+                    orderService.cancelOrder(order.getOrderId());
+                    totalCancelled++;
+                } catch (Exception e) {
+                    log.error("결제 타임아웃 주문 취소 실패: {}", order.getOrderId(), e);
+                }
+            }
+        } while (page.hasNext());
+
+        return totalCancelled;
     }
 }

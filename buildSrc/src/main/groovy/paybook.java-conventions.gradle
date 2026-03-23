@@ -1,6 +1,7 @@
 plugins {
     id 'java'
     id 'io.spring.dependency-management'
+    id 'jacoco'
 }
 
 group = 'com.paybook'
@@ -31,4 +32,12 @@ dependencyManagement {
 
 test {
     useJUnitPlatform()
+    finalizedBy jacocoTestReport
+}
+
+jacocoTestReport {
+    dependsOn test
+    reports {
+        csv.required = true
+    }
 }

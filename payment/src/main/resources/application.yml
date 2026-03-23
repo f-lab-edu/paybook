@@ -2,13 +2,13 @@ spring:
   application:
     name: payment-service
   datasource:
-    url: jdbc:h2:mem:paymentdb
-    driver-class-name: org.h2.Driver
-    username: sa
-    password:
+    url: jdbc:postgresql://localhost:5433/paymentdb
+    driver-class-name: org.postgresql.Driver
+    username: paybook
+    password: paybook
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: update
     open-in-view: false
 
 server:

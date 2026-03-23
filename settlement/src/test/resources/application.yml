@@ -1,0 +1,17 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+
+settlement:
+  order-service:
+    base-url: http://localhost:8080
+  policy:
+    default-commission-rate: 30
+    confirm-delay-days: 7

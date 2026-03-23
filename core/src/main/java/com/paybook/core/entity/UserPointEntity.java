@@ -20,6 +20,9 @@ public class UserPointEntity {
 
     private int balance;
 
+    @Version
+    private Long version;
+
     public UserPointEntity(String userId, int balance) {
         this.userId = userId;
         this.balance = balance;

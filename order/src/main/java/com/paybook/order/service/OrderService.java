@@ -24,7 +24,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.UUID;
 import java.util.stream.IntStream;
 
 @Service
@@ -32,9 +32,6 @@ import java.util.stream.IntStream;
 public class OrderService {
 
     private static final int PERCENT_DIVISOR = 100;
-    private static final int ORDER_ID_PAD_LENGTH = 6;
-
-    private final AtomicLong sequence = new AtomicLong(1);
 
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
@@ -261,13 +258,20 @@ public class OrderService {
     private OrderEntity buildAndSaveOrder(CreateOrderRequest request, List<ProductEntity> products,
                                           int totalAmount, int couponDiscount, int pointDiscount,
                                           int pgPaymentAmount, int deliveryFee) {
-        String orderId = "ORD-" + String.format("%0" + ORDER_ID_PAD_LENGTH + "d", sequence.getAndIncrement());
+        String orderId = "ORD-" + UUID.randomUUID().toString().substring(0, 8);
 
-        OrderEntity order = new OrderEntity(
-                orderId, request.userId(), totalAmount,
-                couponDiscount, pointDiscount, pgPaymentAmount,
-                deliveryFee, request.deliveryAddress(), request.couponId(), request.pointAmountToUse()
-        );
+        OrderEntity order = OrderEntity.builder()
+                .orderId(orderId)
+                .userId(request.userId())
+                .totalAmount(totalAmount)
+                .couponDiscountAmount(couponDiscount)
+                .pointDiscountAmount(pointDiscount)
+                .pgPaymentAmount(pgPaymentAmount)
+                .deliveryFee(deliveryFee)
+                .deliveryAddress(request.deliveryAddress())
+                .couponId(request.couponId())
+                .pointAmountToUse(request.pointAmountToUse())
+                .build();
 
         IntStream.range(0, request.items().size()).forEach(i -> {
             CreateOrderRequest.OrderItemRequest itemReq = request.items().get(i);
@@ -335,6 +339,7 @@ public class OrderService {
                 order.getTotalAmount(), order.getCouponDiscountAmount(),
                 order.getPointDiscountAmount(), order.getPgPaymentAmount(),
                 order.getDeliveryFee(), order.getStatus().name(),
+                order.getCouponId(),
                 order.getCreatedAt().toString());
     }
 }

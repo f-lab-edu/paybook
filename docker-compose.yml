@@ -1,0 +1,41 @@
+services:
+  orderdb:
+    image: postgres:17
+    container_name: paybook-orderdb
+    environment:
+      POSTGRES_DB: orderdb
+      POSTGRES_USER: paybook
+      POSTGRES_PASSWORD: paybook
+    ports:
+      - "5432:5432"
+    volumes:
+      - orderdb-data:/var/lib/postgresql/data
+
+  paymentdb:
+    image: postgres:17
+    container_name: paybook-paymentdb
+    environment:
+      POSTGRES_DB: paymentdb
+      POSTGRES_USER: paybook
+      POSTGRES_PASSWORD: paybook
+    ports:
+      - "5433:5432"
+    volumes:
+      - paymentdb-data:/var/lib/postgresql/data
+
+  settlementdb:
+    image: postgres:17
+    container_name: paybook-settlementdb
+    environment:
+      POSTGRES_DB: settlementdb
+      POSTGRES_USER: paybook
+      POSTGRES_PASSWORD: paybook
+    ports:
+      - "5434:5432"
+    volumes:
+      - settlementdb-data:/var/lib/postgresql/data
+
+volumes:
+  orderdb-data:
+  paymentdb-data:
+  settlementdb-data:

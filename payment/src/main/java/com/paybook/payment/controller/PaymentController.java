@@ -14,18 +14,20 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class PaymentController {
 
+    private static final String ORDER_ID = "orderId";
+
     private final PaymentService paymentService;
 
     @PostMapping
     public ResponseEntity<Map<String, Object>> processPayment(@RequestBody Map<String, Object> request) {
-        String orderId = (String) request.get("orderId");
+        String orderId = (String) request.get(ORDER_ID);
         int pgPaymentAmount = (int) request.get("pgPaymentAmount");
 
         PaymentEntity payment = paymentService.processPayment(orderId, pgPaymentAmount);
 
         return ResponseEntity.status(HttpStatus.OK).body(Map.of(
                 "paymentId", payment.getPaymentId(),
-                "orderId", payment.getOrderId(),
+                ORDER_ID, payment.getOrderId(),
                 "status", payment.getStatus().name(),
                 "pgTransactionId", payment.getPgTransactionId() != null ? payment.getPgTransactionId() : ""
         ));
@@ -37,7 +39,7 @@ public class PaymentController {
 
         return ResponseEntity.ok(Map.of(
                 "paymentId", payment.getPaymentId(),
-                "orderId", payment.getOrderId(),
+                ORDER_ID, payment.getOrderId(),
                 "status", payment.getStatus().name()
         ));
     }

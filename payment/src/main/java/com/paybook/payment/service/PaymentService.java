@@ -10,23 +10,20 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class PaymentService {
 
-    private static final int PAYMENT_ID_PAD_LENGTH = 6;
-
-    private final AtomicLong sequence = new AtomicLong(1);
-
     private final PaymentRepository paymentRepository;
+
     private final PgClient pgClient;
     private final OrderServiceClient orderServiceClient;
 
     @Transactional
     public PaymentEntity processPayment(String orderId, int pgPaymentAmount) {
-        String paymentId = "PAY-" + String.format("%0" + PAYMENT_ID_PAD_LENGTH + "d", sequence.getAndIncrement());
+        String paymentId = "PAY-" + UUID.randomUUID().toString().substring(0, 8);
 
         PaymentEntity payment = new PaymentEntity(paymentId, orderId, pgPaymentAmount);
         paymentRepository.save(payment);
