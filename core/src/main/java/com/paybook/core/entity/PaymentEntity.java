@@ -20,7 +20,7 @@ public class PaymentEntity {
     @Column(nullable = false, unique = true)
     private String paymentId;
 
-    @Column(nullable = false)
+    @Column(nullable = false, unique = true)
     private String orderId;
 
     private int pgPaymentAmount;
@@ -33,6 +33,9 @@ public class PaymentEntity {
 
     @Column(nullable = false)
     private LocalDateTime createdAt;
+
+    @Version
+    private Long version;
 
     public PaymentEntity(String paymentId, String orderId, int pgPaymentAmount) {
         this.paymentId = paymentId;

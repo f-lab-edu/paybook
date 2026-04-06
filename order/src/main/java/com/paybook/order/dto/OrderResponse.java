@@ -12,6 +12,7 @@ public record OrderResponse(
         int pgPaymentAmount,
         int deliveryFee,
         String status,
+        String couponId,
         String createdAt
 ) {
     public record OrderItemResponse(

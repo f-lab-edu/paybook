@@ -2,9 +2,7 @@ package com.paybook.order.entity;
 
 import com.paybook.order.exception.OrderException;
 import jakarta.persistence.*;
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -16,6 +14,8 @@ import java.util.Set;
 @Table(name = "orders")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
+@Builder
 public class OrderEntity {
 
     private static final Set<OrderStatus> NON_CANCELLABLE_STATUSES = EnumSet.of(
@@ -34,6 +34,7 @@ public class OrderEntity {
     private String userId;
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
     private List<OrderItemEntity> items = new ArrayList<>();
 
     private int totalAmount;
@@ -48,7 +49,8 @@ public class OrderEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private OrderStatus status;
+    @Builder.Default
+    private OrderStatus status = OrderStatus.PENDING_PAYMENT;
 
     private String deliveryAddress;
 
@@ -57,25 +59,11 @@ public class OrderEntity {
     private Integer pointAmountToUse;
 
     @Column(nullable = false)
-    private LocalDateTime createdAt;
+    @Builder.Default
+    private LocalDateTime createdAt = LocalDateTime.now();
 
-    public OrderEntity(String orderId, String userId, int totalAmount,
-                       int couponDiscountAmount, int pointDiscountAmount, int pgPaymentAmount,
-                       int deliveryFee, String deliveryAddress, String couponId,
-                       Integer pointAmountToUse) {
-        this.orderId = orderId;
-        this.userId = userId;
-        this.totalAmount = totalAmount;
-        this.couponDiscountAmount = couponDiscountAmount;
-        this.pointDiscountAmount = pointDiscountAmount;
-        this.pgPaymentAmount = pgPaymentAmount;
-        this.deliveryFee = deliveryFee;
-        this.deliveryAddress = deliveryAddress;
-        this.couponId = couponId;
-        this.pointAmountToUse = pointAmountToUse;
-        this.status = OrderStatus.PENDING_PAYMENT;
-        this.createdAt = LocalDateTime.now();
-    }
+    @Version
+    private Long version;
 
     public void addItem(OrderItemEntity item) {
         items.add(item);

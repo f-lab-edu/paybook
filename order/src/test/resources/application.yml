@@ -1,18 +1,13 @@
 spring:
-  application:
-    name: order-service
   datasource:
-    url: jdbc:postgresql://localhost:5432/orderdb
-    driver-class-name: org.postgresql.Driver
-    username: paybook
-    password: paybook
+    url: jdbc:h2:mem:testdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: create-drop
     open-in-view: false
-
-server:
-  port: 8080
 
 order:
   discount:

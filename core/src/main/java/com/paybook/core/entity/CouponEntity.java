@@ -36,6 +36,9 @@ public class CouponEntity {
 
     private Integer minOrderAmount;
 
+    @Version
+    private Long version;
+
     public CouponEntity(String couponId, CouponStatus status, CouponType couponType,
                         DiscountType discountType, int discountValue, Integer maxDiscountAmount) {
         this(couponId, status, couponType, discountType, discountValue, maxDiscountAmount, null);
