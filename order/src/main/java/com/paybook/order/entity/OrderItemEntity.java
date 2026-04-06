@@ -30,11 +30,19 @@ public class OrderItemEntity {
     @JoinColumn(name = "order_id", nullable = false)
     private OrderEntity order;
 
+    private String exchangeProductId;
+
+    private Integer exchangeQuantity;
+
     public OrderItemEntity(String productId, int quantity, int price) {
         this.productId = productId;
         this.quantity = quantity;
         this.price = price;
         this.itemStatus = OrderItemStatus.ACTIVE;
+    }
+
+    public int getItemTotal() {
+        return this.price * this.quantity;
     }
 
     public void cancelItem() {
@@ -43,6 +51,26 @@ public class OrderItemEntity {
 
     public boolean isActive() {
         return this.itemStatus == OrderItemStatus.ACTIVE;
+    }
+
+    public void requestExchange(String newProductId, int newQuantity) {
+        if (this.itemStatus != OrderItemStatus.ACTIVE) {
+            throw new IllegalStateException("활성 상태의 아이템만 교환 요청할 수 있습니다");
+        }
+        this.itemStatus = OrderItemStatus.EXCHANGE_REQUESTED;
+        this.exchangeProductId = newProductId;
+        this.exchangeQuantity = newQuantity;
+    }
+
+    public void completeExchange() {
+        if (this.itemStatus != OrderItemStatus.EXCHANGE_REQUESTED) {
+            throw new IllegalStateException("교환 요청 상태의 아이템만 교환 완료할 수 있습니다");
+        }
+        this.itemStatus = OrderItemStatus.EXCHANGE_COMPLETED;
+    }
+
+    public boolean isExchangeRequested() {
+        return this.itemStatus == OrderItemStatus.EXCHANGE_REQUESTED;
     }
 
     void setOrder(OrderEntity order) {

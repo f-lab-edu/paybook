@@ -68,4 +68,16 @@ public class OrderException extends RuntimeException {
         return new OrderException("INVALID_STATUS_TRANSITION",
                 "주문 상태를 변경할 수 없습니다: " + orderId + " (" + from + " → " + to + ")", HttpStatus.CONFLICT);
     }
+
+    public static OrderException exchangeNotAllowed(String orderId) {
+        return new OrderException("EXCHANGE_NOT_ALLOWED",
+                "교환할 수 없는 주문 상태입니다: " + orderId, HttpStatus.CONFLICT);
+    }
+
+    public static OrderException amountInconsistency(String orderId, String field, int expected, int actual) {
+        return new OrderException("AMOUNT_INCONSISTENCY",
+                "금액 정합성 오류 [" + orderId + "] " + field
+                        + ": expected=" + expected + ", actual=" + actual,
+                HttpStatus.INTERNAL_SERVER_ERROR);
+    }
 }

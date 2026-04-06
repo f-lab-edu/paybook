@@ -41,7 +41,7 @@ public class SettlementScheduler {
         Page<SettlementEntity> page;
 
         do {
-            page = settlementRepository.findByStatusAndCreatedAtBeforeOrderByCreatedAtAsc(
+            page = settlementRepository.findByStatusAndCreatedAtBeforeForUpdate(
                     SettlementStatus.PENDING, cutoff, PageRequest.of(0, BATCH_SIZE));
 
             for (SettlementEntity settlement : page.getContent()) {

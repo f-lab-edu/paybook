@@ -13,11 +13,12 @@ import com.paybook.settlement.entity.SettlementStatus;
 import com.paybook.settlement.exception.SettlementException;
 import com.paybook.settlement.repository.SettlementRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,13 +39,27 @@ public class SettlementService {
     private final OrderServiceClient orderServiceClient;
     private final SettlementPolicyConfig policyConfig;
 
-    @Transactional
+    @Lazy
+    @Autowired
+    private SettlementService self;
+
+    /**
+     * 정산 생성 — 외부 HTTP 조회를 트랜잭션 밖에서 수행.
+     *
+     * 1) Order 서비스에서 주문 정보 조회 (트랜잭션 밖 — 네트워크 지연이 DB에 영향 없음)
+     * 2) 정산 엔티티 생성 및 저장 (트랜잭션 안 — DB 작업만)
+     */
     public SettlementResponse createSettlement(String orderId) {
         validateNotAlreadySettled(orderId);
 
         OrderData orderData = orderServiceClient.getOrder(orderId);
         validatePurchaseConfirmed(orderData);
 
+        return self.saveSettlement(orderId, orderData);
+    }
+
+    @Transactional
+    public SettlementResponse saveSettlement(String orderId, OrderData orderData) {
         int couponDiscount = orderData.couponDiscountAmount();
         CouponAmounts couponAmounts = splitCouponAmounts(orderData.couponId(), couponDiscount);
 
@@ -123,21 +138,15 @@ public class SettlementService {
     public List<SettlementResponse> confirmAllPending() {
         List<SettlementResponse> results = new ArrayList<>();
         Page<SettlementEntity> page;
-        int pageNum = 0;
 
         do {
-            page = settlementRepository.findByStatusOrderByCreatedAtAsc(
-                    SettlementStatus.PENDING, PageRequest.of(pageNum, BATCH_SIZE));
+            page = settlementRepository.findByStatusForUpdate(
+                    SettlementStatus.PENDING, PageRequest.of(0, BATCH_SIZE));
 
             for (SettlementEntity settlement : page.getContent()) {
-                try {
-                    settlement.confirm();
-                    results.add(toResponse(settlement));
-                } catch (ObjectOptimisticLockingFailureException e) {
-                    // 다른 스레드가 이미 처리 → 건너뜀
-                }
+                settlement.confirm();
+                results.add(toResponse(settlement));
             }
-            pageNum++;
         } while (page.hasNext());
 
         return results;
@@ -154,21 +163,15 @@ public class SettlementService {
     public List<SettlementResponse> payAllConfirmed() {
         List<SettlementResponse> results = new ArrayList<>();
         Page<SettlementEntity> page;
-        int pageNum = 0;
 
         do {
-            page = settlementRepository.findByStatusOrderByCreatedAtAsc(
-                    SettlementStatus.CONFIRMED, PageRequest.of(pageNum, BATCH_SIZE));
+            page = settlementRepository.findByStatusForUpdate(
+                    SettlementStatus.CONFIRMED, PageRequest.of(0, BATCH_SIZE));
 
             for (SettlementEntity settlement : page.getContent()) {
-                try {
-                    settlement.markPaid();
-                    results.add(toResponse(settlement));
-                } catch (ObjectOptimisticLockingFailureException e) {
-                    // 다른 스레드가 이미 처리 → 건너뜀
-                }
+                settlement.markPaid();
+                results.add(toResponse(settlement));
             }
-            pageNum++;
         } while (page.hasNext());
 
         return results;

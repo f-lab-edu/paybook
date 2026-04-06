@@ -117,6 +117,63 @@ public class OrderEntity {
         return !NON_CANCELLABLE_STATUSES.contains(this.status);
     }
 
+    public boolean isExchangeable() {
+        return this.status == OrderStatus.DELIVERED;
+    }
+
+    // ── 금액 재계산 ──
+
+    public int calculateActiveItemsTotal() {
+        return items.stream()
+                .filter(OrderItemEntity::isActive)
+                .mapToInt(OrderItemEntity::getItemTotal)
+                .sum();
+    }
+
+    public double calculateCancelledItemRatio(OrderItemEntity cancelledItem) {
+        return (double) cancelledItem.getItemTotal() / this.totalAmount;
+    }
+
+    public int calculateProportionalPointRestore(OrderItemEntity cancelledItem) {
+        if (this.pointAmountToUse == null || this.pointAmountToUse <= 0) {
+            return 0;
+        }
+        double ratio = calculateCancelledItemRatio(cancelledItem);
+        return (int) Math.floor(this.pointAmountToUse * ratio);
+    }
+
+    public void recalculateAmountsAfterPartialCancel(int newDeliveryFee, int restoredPoints) {
+        this.totalAmount = calculateActiveItemsTotal();
+        this.pointDiscountAmount -= restoredPoints;
+        this.deliveryFee = newDeliveryFee;
+        this.pgPaymentAmount = this.totalAmount - this.couponDiscountAmount
+                - this.pointDiscountAmount + this.deliveryFee;
+    }
+
+    // ── 정합성 검증 ──
+
+    public void validateTotalAmountConsistency() {
+        int expectedTotal = calculateActiveItemsTotal();
+        if (this.totalAmount != expectedTotal) {
+            throw OrderException.amountInconsistency(
+                    this.orderId, "totalAmount", expectedTotal, this.totalAmount);
+        }
+    }
+
+    public void validatePgPaymentConsistency() {
+        int expectedPgPayment = this.totalAmount - this.couponDiscountAmount
+                - this.pointDiscountAmount + this.deliveryFee;
+        if (this.pgPaymentAmount != expectedPgPayment) {
+            throw OrderException.amountInconsistency(
+                    this.orderId, "pgPaymentAmount", expectedPgPayment, this.pgPaymentAmount);
+        }
+    }
+
+    public void validateAmountConsistency() {
+        validateTotalAmountConsistency();
+        validatePgPaymentConsistency();
+    }
+
     private void validateTransition(OrderStatus expectedCurrent, OrderStatus target) {
         if (this.status != expectedCurrent) {
             throw OrderException.invalidStatusTransition(orderId, this.status.name(), target.name());

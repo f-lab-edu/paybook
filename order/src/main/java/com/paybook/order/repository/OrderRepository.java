@@ -4,6 +4,7 @@ import com.paybook.order.entity.OrderEntity;
 import com.paybook.order.entity.OrderStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.LocalDateTime;
@@ -13,8 +14,10 @@ public interface OrderRepository extends JpaRepository<OrderEntity, Long> {
 
     Optional<OrderEntity> findByOrderId(String orderId);
 
+    @EntityGraph(attributePaths = "items")
     Page<OrderEntity> findByUserIdOrderByCreatedAtDesc(String userId, Pageable pageable);
 
+    @EntityGraph(attributePaths = "items")
     Page<OrderEntity> findByUserIdAndStatusOrderByCreatedAtDesc(String userId, OrderStatus status, Pageable pageable);
 
     Page<OrderEntity> findByStatusAndCreatedAtBefore(OrderStatus status, LocalDateTime cutoff, Pageable pageable);

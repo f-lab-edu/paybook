@@ -7,9 +7,11 @@ import com.paybook.core.entity.UserPointEntity;
 import com.paybook.core.repository.CouponRepository;
 import com.paybook.core.repository.ProductRepository;
 import com.paybook.core.repository.UserPointRepository;
+import com.paybook.order.client.PaymentServiceClient;
 import com.paybook.order.config.DeliveryFeeConfig;
 import com.paybook.order.config.DiscountPolicyConfig;
 import com.paybook.order.dto.CreateOrderRequest;
+import com.paybook.order.dto.ExchangeItemRequest;
 import com.paybook.order.dto.OrderResponse;
 import com.paybook.order.dto.OrderResponse.OrderItemResponse;
 import com.paybook.order.entity.OrderEntity;
@@ -24,7 +26,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 @Service
@@ -39,6 +44,9 @@ public class OrderService {
     private final UserPointRepository userPointRepository;
     private final DiscountPolicyConfig discountPolicyConfig;
     private final DeliveryFeeConfig deliveryFeeConfig;
+    private final PaymentServiceClient paymentServiceClient;
+
+    // ── 주문 생성 ──
 
     @Transactional
     public OrderResponse createOrder(CreateOrderRequest request) {
@@ -62,9 +70,12 @@ public class OrderService {
                 pointDiscountAmount, pgPaymentAmount, deliveryFee);
 
         applyResourceDeductions(products, request, coupon, userPoint);
+        order.validateAmountConsistency();
 
         return toResponse(order);
     }
+
+    // ── 주문 조회 ──
 
     @Transactional(readOnly = true)
     public OrderResponse getOrder(String orderId) {
@@ -79,6 +90,8 @@ public class OrderService {
                 : orderRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable);
         return orders.map(this::toResponse);
     }
+
+    // ── 주문 상태 변경 ──
 
     @Transactional
     public OrderResponse confirmOrder(String orderId) {
@@ -131,50 +144,167 @@ public class OrderService {
         return toResponse(order);
     }
 
+    // ── 전체 취소 ──
+
     @Transactional
     public OrderResponse cancelOrder(String orderId) {
         OrderEntity order = findOrderOrThrow(orderId);
         restoreResources(order);
         order.cancel();
+        paymentServiceClient.requestFullRefund(orderId);
         return toResponse(order);
     }
+
+    // ── 부분 취소 ──
 
     @Transactional
     public OrderResponse cancelItem(String orderId, String productId) {
         OrderEntity order = findOrderOrThrow(orderId);
+        validateCancellable(order);
 
-        if (!order.isCancellable()) {
-            throw OrderException.orderNotCancellable(orderId);
-        }
-
-        OrderItemEntity targetItem = order.getItems().stream()
-                .filter(item -> item.getProductId().equals(productId) && item.isActive())
-                .findFirst()
-                .orElseThrow(() -> OrderException.productNotFound(productId));
-
+        OrderItemEntity targetItem = findActiveItem(order, productId);
         targetItem.cancelItem();
-
-        productRepository.findByProductId(productId)
-                .orElseThrow(() -> OrderException.productNotFound(productId))
-                .restoreStock(targetItem.getQuantity());
+        restoreItemStock(targetItem);
 
         boolean allCancelled = order.getItems().stream().noneMatch(OrderItemEntity::isActive);
+
         if (allCancelled) {
-            restoreCoupon(order);
-            restorePoints(order);
-            order.cancel();
+            handleFullCancellation(order);
+        } else {
+            handlePartialCancellation(order, targetItem);
         }
 
         return toResponse(order);
+    }
+
+    private void validateCancellable(OrderEntity order) {
+        if (!order.isCancellable()) {
+            throw OrderException.orderNotCancellable(order.getOrderId());
+        }
+    }
+
+    private OrderItemEntity findActiveItem(OrderEntity order, String productId) {
+        return order.getItems().stream()
+                .filter(item -> item.getProductId().equals(productId) && item.isActive())
+                .findFirst()
+                .orElseThrow(() -> OrderException.productNotFound(productId));
+    }
+
+    private void restoreItemStock(OrderItemEntity item) {
+        productRepository.findByProductIdForUpdate(item.getProductId())
+                .orElseThrow(() -> OrderException.productNotFound(item.getProductId()))
+                .restoreStock(item.getQuantity());
+    }
+
+    private void handleFullCancellation(OrderEntity order) {
+        restoreCoupon(order);
+        restorePoints(order);
+        order.cancel();
+        paymentServiceClient.requestFullRefund(order.getOrderId());
+    }
+
+    private void handlePartialCancellation(OrderEntity order, OrderItemEntity cancelledItem) {
+        int oldPgPaymentAmount = order.getPgPaymentAmount();
+
+        int restoredPoints = order.calculateProportionalPointRestore(cancelledItem);
+        int newDeliveryFee = calculateDeliveryFee(order.calculateActiveItemsTotal());
+
+        order.recalculateAmountsAfterPartialCancel(newDeliveryFee, restoredPoints);
+        order.validateAmountConsistency();
+
+        restorePartialPoints(order, restoredPoints);
+
+        int pgRefundAmount = oldPgPaymentAmount - order.getPgPaymentAmount();
+        if (pgRefundAmount > 0) {
+            paymentServiceClient.requestPartialRefund(order.getOrderId(), pgRefundAmount);
+        }
+    }
+
+    private void restorePartialPoints(OrderEntity order, int amount) {
+        if (amount <= 0) {
+            return;
+        }
+        userPointRepository.findByUserIdForUpdate(order.getUserId())
+                .ifPresent(userPoint -> userPoint.restore(amount));
+    }
+
+    // ── 교환 ──
+
+    @Transactional
+    public OrderResponse requestExchange(ExchangeItemRequest request) {
+        OrderEntity order = findOrderOrThrow(request.orderId());
+        validateExchangeable(order);
+
+        OrderItemEntity originalItem = findActiveItem(order, request.originalProductId());
+
+        ProductEntity newProduct = reserveExchangeStock(request.newProductId(), request.newQuantity());
+
+        originalItem.requestExchange(request.newProductId(), request.newQuantity());
+
+        return toResponse(order);
+    }
+
+    @Transactional
+    public OrderResponse completeExchange(String orderId, String originalProductId) {
+        OrderEntity order = findOrderOrThrow(orderId);
+
+        OrderItemEntity originalItem = findExchangeRequestedItem(order, originalProductId);
+
+        restoreItemStock(originalItem);
+        originalItem.completeExchange();
+
+        ProductEntity newProduct = productRepository.findByProductId(originalItem.getExchangeProductId())
+                .orElseThrow(() -> OrderException.productNotFound(originalItem.getExchangeProductId()));
+
+        order.addItem(new OrderItemEntity(
+                originalItem.getExchangeProductId(),
+                originalItem.getExchangeQuantity(),
+                newProduct.getPrice()));
+
+        return toResponse(order);
+    }
+
+    private void validateExchangeable(OrderEntity order) {
+        if (!order.isExchangeable()) {
+            throw OrderException.exchangeNotAllowed(order.getOrderId());
+        }
+    }
+
+    private ProductEntity reserveExchangeStock(String productId, int quantity) {
+        ProductEntity product = productRepository.findByProductIdForUpdate(productId)
+                .orElseThrow(() -> OrderException.productNotFound(productId));
+
+        if (product.getStockQuantity() < quantity) {
+            throw OrderException.outOfStock();
+        }
+        product.deductStock(quantity);
+        return product;
+    }
+
+    private OrderItemEntity findExchangeRequestedItem(OrderEntity order, String productId) {
+        return order.getItems().stream()
+                .filter(item -> item.getProductId().equals(productId) && item.isExchangeRequested())
+                .findFirst()
+                .orElseThrow(() -> OrderException.productNotFound(productId));
     }
 
     // ── 검증 메서드 ──
 
     private List<ProductEntity> validateAndFetchProducts(CreateOrderRequest request) {
+        List<String> productIds = request.items().stream()
+                .map(CreateOrderRequest.OrderItemRequest::productId)
+                .toList();
+
+        Map<String, ProductEntity> productMap = productRepository.findAllByProductIdInForUpdate(productIds)
+                .stream()
+                .collect(Collectors.toMap(ProductEntity::getProductId, Function.identity()));
+
         return request.items().stream()
                 .map(itemReq -> {
-                    ProductEntity product = productRepository.findByProductId(itemReq.productId())
-                            .orElseThrow(() -> OrderException.productNotFound(itemReq.productId()));
+                    ProductEntity product = productMap.get(itemReq.productId());
+                    if (product == null) {
+                        throw OrderException.productNotFound(itemReq.productId());
+                    }
                     if (product.getStockQuantity() < itemReq.quantity()) {
                         throw OrderException.outOfStock();
                     }
@@ -187,7 +317,7 @@ public class OrderService {
         if (couponId == null) {
             return null;
         }
-        CouponEntity coupon = couponRepository.findByCouponId(couponId)
+        CouponEntity coupon = couponRepository.findByCouponIdForUpdate(couponId)
                 .orElseThrow(OrderException::couponNotFound);
 
         if (coupon.getStatus() == CouponStatus.USED) {
@@ -203,7 +333,7 @@ public class OrderService {
         if (request.pointAmountToUse() == null || request.pointAmountToUse() <= 0) {
             return null;
         }
-        UserPointEntity userPoint = userPointRepository.findByUserId(request.userId())
+        UserPointEntity userPoint = userPointRepository.findByUserIdForUpdate(request.userId())
                 .orElseThrow(OrderException::pointsUnavailable);
 
         if (userPoint.getBalance() < request.pointAmountToUse()) {
@@ -297,25 +427,36 @@ public class OrderService {
     // ── 리소스 복원 ──
 
     private void restoreResources(OrderEntity order) {
-        order.getItems().forEach(item ->
-                productRepository.findByProductId(item.getProductId())
-                        .orElseThrow(() -> OrderException.productNotFound(item.getProductId()))
-                        .restoreStock(item.getQuantity())
-        );
+        List<String> productIds = order.getItems().stream()
+                .map(OrderItemEntity::getProductId)
+                .toList();
+
+        Map<String, ProductEntity> productMap = productRepository.findAllByProductIdInForUpdate(productIds)
+                .stream()
+                .collect(Collectors.toMap(ProductEntity::getProductId, Function.identity()));
+
+        order.getItems().forEach(item -> {
+            ProductEntity product = productMap.get(item.getProductId());
+            if (product == null) {
+                throw OrderException.productNotFound(item.getProductId());
+            }
+            product.restoreStock(item.getQuantity());
+        });
+
         restoreCoupon(order);
         restorePoints(order);
     }
 
     private void restoreCoupon(OrderEntity order) {
         if (order.getCouponId() != null) {
-            couponRepository.findByCouponId(order.getCouponId())
+            couponRepository.findByCouponIdForUpdate(order.getCouponId())
                     .ifPresent(CouponEntity::restore);
         }
     }
 
     private void restorePoints(OrderEntity order) {
         if (order.getPointAmountToUse() != null && order.getPointAmountToUse() > 0) {
-            userPointRepository.findByUserId(order.getUserId())
+            userPointRepository.findByUserIdForUpdate(order.getUserId())
                     .ifPresent(userPoint -> userPoint.restore(order.getPointAmountToUse()));
         }
     }
