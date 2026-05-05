@@ -1,6 +1,7 @@
 package com.paybook.order.controller;
 
 import com.paybook.order.dto.CreateOrderRequest;
+import com.paybook.order.dto.ExchangeItemRequest;
 import com.paybook.order.dto.OrderResponse;
 import com.paybook.order.entity.OrderStatus;
 import com.paybook.order.service.OrderService;
@@ -83,5 +84,18 @@ public class OrderController {
     public ResponseEntity<OrderResponse> cancelItem(
             @PathVariable String orderId, @PathVariable String productId) {
         return ResponseEntity.ok(orderService.cancelItem(orderId, productId));
+    }
+
+    @PostMapping("/{orderId}/exchange")
+    public ResponseEntity<OrderResponse> requestExchange(
+            @PathVariable String orderId,
+            @Valid @RequestBody ExchangeItemRequest request) {
+        return ResponseEntity.ok(orderService.requestExchange(request));
+    }
+
+    @PatchMapping("/{orderId}/items/{productId}/exchange-complete")
+    public ResponseEntity<OrderResponse> completeExchange(
+            @PathVariable String orderId, @PathVariable String productId) {
+        return ResponseEntity.ok(orderService.completeExchange(orderId, productId));
     }
 }

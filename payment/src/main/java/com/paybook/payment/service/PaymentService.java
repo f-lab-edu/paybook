@@ -1,64 +1,60 @@
 package com.paybook.payment.service;
 
 import com.paybook.core.entity.PaymentEntity;
-import com.paybook.core.repository.PaymentRepository;
+import com.paybook.core.entity.PaymentMethod;
 import com.paybook.payment.client.OrderServiceClient;
 import com.paybook.payment.client.PgClient;
 import com.paybook.payment.client.PgClient.PgPaymentResult;
-import com.paybook.payment.exception.PaymentException;
+import com.paybook.payment.dto.RefundRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class PaymentService {
 
-    private final PaymentRepository paymentRepository;
-
+    private final PaymentTransactionService txService;
     private final PgClient pgClient;
     private final OrderServiceClient orderServiceClient;
 
-    @Transactional
-    public PaymentEntity processPayment(String orderId, int pgPaymentAmount) {
-        String paymentId = "PAY-" + UUID.randomUUID().toString().substring(0, 8);
-
-        PaymentEntity payment = new PaymentEntity(paymentId, orderId, pgPaymentAmount);
-        paymentRepository.save(payment);
+    /**
+     * 결제 처리 — 트랜잭션을 분리하여 외부 호출 시 DB 커넥션을 점유하지 않음.
+     */
+    public PaymentEntity processPayment(String orderId, int pgPaymentAmount, PaymentMethod paymentMethod) {
+        PaymentEntity payment = txService.createPendingPayment(orderId, pgPaymentAmount, paymentMethod);
+        String paymentId = payment.getPaymentId();
 
         PgPaymentResult result = pgClient.requestPayment(paymentId, pgPaymentAmount);
 
         if (result.success()) {
-            payment.markSuccess(result.pgTransactionId());
+            txService.markSuccess(paymentId, result.pgTransactionId());
             orderServiceClient.confirmOrder(orderId);
         } else {
-            payment.markFailed();
+            txService.markFailed(paymentId);
             orderServiceClient.markPaymentFailed(orderId);
         }
 
-        return payment;
+        return txService.findByPaymentIdOrThrow(paymentId);
     }
 
-    @Transactional
+    /**
+     * 전체 환불 — 단일 트랜잭션으로 비관적 락 유지.
+     */
     public PaymentEntity refundPayment(String orderId) {
-        PaymentEntity payment = paymentRepository.findByOrderId(orderId)
-                .orElseThrow(() -> PaymentException.paymentNotFound(orderId));
+        return txService.refundPayment(orderId);
+    }
 
-        if (!payment.isRefundable()) {
-            throw PaymentException.notRefundable(payment.getStatus().name());
-        }
+    /**
+     * 부분 환불 — 부분 취소 시 사용.
+     */
+    public PaymentEntity partialRefundPayment(String orderId, int refundAmount) {
+        return txService.partialRefundPayment(orderId, refundAmount);
+    }
 
-        PgClient.PgRefundResult result = pgClient.requestRefund(
-                payment.getPgTransactionId(), payment.getPgPaymentAmount());
-
-        if (result.success()) {
-            payment.markRefunded();
-        } else {
-            throw PaymentException.pgRefundFailed(result.failureReason());
-        }
-
-        return payment;
+    /**
+     * 부분 환불 (환불계좌 포함) — 계좌이체/가상계좌용.
+     */
+    public PaymentEntity partialRefundPayment(String orderId, RefundRequest request) {
+        return txService.partialRefundPayment(orderId, request);
     }
 }

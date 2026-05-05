@@ -25,9 +25,6 @@ public class ProductEntity {
 
     private int stockQuantity;
 
-    @Version
-    private Long version;
-
     public ProductEntity(String productId, String name, int price, int stockQuantity) {
         this.productId = productId;
         this.name = name;

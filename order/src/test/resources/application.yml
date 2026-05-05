@@ -18,3 +18,5 @@ order:
     free-threshold: 30000
   payment:
     timeout-minutes: 30
+  payment-service:
+    base-url: http://localhost:8081

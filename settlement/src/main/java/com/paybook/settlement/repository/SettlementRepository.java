@@ -2,9 +2,11 @@ package com.paybook.settlement.repository;
 
 import com.paybook.settlement.entity.SettlementEntity;
 import com.paybook.settlement.entity.SettlementStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -24,8 +26,17 @@ public interface SettlementRepository extends JpaRepository<SettlementEntity, Lo
 
     Page<SettlementEntity> findByStatusOrderByCreatedAtAsc(SettlementStatus status, Pageable pageable);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT s FROM SettlementEntity s WHERE s.status = :status ORDER BY s.createdAt ASC")
+    Page<SettlementEntity> findByStatusForUpdate(@Param("status") SettlementStatus status, Pageable pageable);
+
     Page<SettlementEntity> findByStatusAndCreatedAtBeforeOrderByCreatedAtAsc(
             SettlementStatus status, LocalDateTime cutoff, Pageable pageable);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT s FROM SettlementEntity s WHERE s.status = :status AND s.createdAt < :cutoff ORDER BY s.createdAt ASC")
+    Page<SettlementEntity> findByStatusAndCreatedAtBeforeForUpdate(
+            @Param("status") SettlementStatus status, @Param("cutoff") LocalDateTime cutoff, Pageable pageable);
 
     @Query("""
             SELECT COALESCE(SUM(s.orderAmount), 0) AS totalOrderAmount,

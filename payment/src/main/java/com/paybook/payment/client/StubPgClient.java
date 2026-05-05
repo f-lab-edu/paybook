@@ -24,4 +24,21 @@ public class StubPgClient implements PgClient {
         }
         return new PgRefundResult(false, null, "Invalid refund request");
     }
+
+    @Override
+    public PgRefundResult requestRefundWithAccount(String pgTransactionId, int amount,
+                                                   String bankCode, String accountNumber, String accountHolder) {
+        if (pgTransactionId != null && amount > 0 && bankCode != null) {
+            return new PgRefundResult(true, "PG-REFUND-ACCT-" + UUID.randomUUID(), null);
+        }
+        return new PgRefundResult(false, null, "Invalid refund with account request");
+    }
+
+    @Override
+    public PgRefundResult cancelVirtualAccount(String pgTransactionId) {
+        if (pgTransactionId != null) {
+            return new PgRefundResult(true, "PG-CANCEL-VA-" + UUID.randomUUID(), null);
+        }
+        return new PgRefundResult(false, null, "Invalid virtual account cancel request");
+    }
 }

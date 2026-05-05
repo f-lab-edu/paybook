@@ -2,5 +2,7 @@ package com.paybook.order.entity;
 
 public enum OrderItemStatus {
     ACTIVE,
-    CANCELLED
+    CANCELLED,
+    EXCHANGE_REQUESTED,
+    EXCHANGE_COMPLETED
 }
